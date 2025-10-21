@@ -2,6 +2,7 @@
   "name": "ctf-collection-client",
   "homepage": "./",
   "version": "latest",
+  "proxy": "http://ctf-collection-app-prod:5000",
   "private": true,
   "dependencies": {
     "axios": "latest",

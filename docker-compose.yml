@@ -25,6 +25,10 @@ services:
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
+      # Disable CORS whitelist for now (accept all origins). Set to '*' to allow any origin.
+      CORS_ORIGINS: '*'
+      # Browsers forbid Access-Control-Allow-Credentials when origin is '*'. Disable credentials.
+      CORS_ALLOW_CREDENTIALS: 'false'
       DB_HOST: mysql
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
@@ -47,9 +51,9 @@ services:
     environment:
       - CHOKIDAR_USEPOLLING=true
       - BROWSER=none
-      - REACT_APP_API_URL=http://ctf-collection-app-prod:5000/api
+      - REACT_APP_API_URL=/api
     ports:
-      - "80:3000"
+      - "8080:3000"
     depends_on:
       - app
 
