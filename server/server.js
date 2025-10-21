@@ -59,29 +59,61 @@ app.use(helmet({
 }));
 
 // CORS configuration - applied early
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests) or 'null' origin
-    if (!origin || origin === 'null') return callback(null, true);
+// Allow configuring allowed origins via environment variables:
+// - CORS_ORIGINS: comma-separated list of allowed origins, or '*' to allow all
+// - FRONTEND_URL: fallback single origin
+// - CORS_ALLOW_CREDENTIALS: 'true' or 'false' to allow credentials (default: true)
+const corsEnv = process.env.CORS_ORIGINS || process.env.FRONTEND_URL || '';
+const corsAllowCredentialsEnv = process.env.CORS_ALLOW_CREDENTIALS;
+const allowCredentials = typeof corsAllowCredentialsEnv === 'string' ? corsAllowCredentialsEnv === 'true' : true;
 
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      'http://localhost:5000'
-    ];
+let allowedOriginsConfig;
+if (corsEnv && corsEnv.trim() === '*') {
+  allowedOriginsConfig = '*';
+} else if (corsEnv) {
+  allowedOriginsConfig = corsEnv.split(',').map(s => s.trim()).filter(Boolean);
+} else {
+  allowedOriginsConfig = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5000'
+  ];
+}
 
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
+console.log('CORS configured allowed origins:', allowedOriginsConfig === '*' ? '*' : JSON.stringify(allowedOriginsConfig));
 
-    console.log('CORS blocked origin:', origin);
-    return callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  optionsSuccessStatus: 200
-}));
+if (allowedOriginsConfig === '*') {
+  // Wildcard: allow any origin. Note: when using wildcard you cannot use credentials (cookies, Authorization with credentials)
+  const effectiveCredentials = allowCredentials ? false : false; // force false
+  if (allowCredentials) {
+    console.warn('CORS: wildcard origin detected; CORS_ALLOW_CREDENTIALS was true but will be ignored for wildcard origins. Set CORS_ORIGINS to a specific host to enable credentials.');
+  }
+  app.use(cors({
+    origin: true,
+    credentials: effectiveCredentials,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    optionsSuccessStatus: 200
+  }));
+} else {
+  app.use(cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps, curl, or same-origin requests)
+      if (!origin || origin === 'null') return callback(null, true);
+
+      if (Array.isArray(allowedOriginsConfig) && allowedOriginsConfig.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.log('CORS blocked origin:', origin);
+      return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: allowCredentials,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    optionsSuccessStatus: 200
+  }));
+}
 
 // Rate limiting (configurable via env vars)
 // RATE_WINDOW_MIN: window size in minutes (default 15)
