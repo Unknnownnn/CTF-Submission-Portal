@@ -2,6 +2,10 @@
   "name": "ctf-collection-client",
   "homepage": "./",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=18 <21",
+    "npm": ">=9"
+  },
   "private": true,
   "proxy": "http://localhost:5000",
   "dependencies": {
@@ -13,6 +17,7 @@
   "remark-gfm": "3.0.1"
   },
   "scripts": {
+  "preinstall": "printf 'optional=false\n' > .npmrc || true",
   "start": "HOST=0.0.0.0 react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
@@ -30,7 +35,6 @@
       "not op_mini all"
     ],
     "development": [
-      "last 1 chrome version",
       "last 1 firefox version",
       "last 1 safari version"
     ]
