@@ -21,7 +21,7 @@ services:
     build: ./server
     container_name: ctf-collection-app-prod
     ports:
-      - "5000:5000"
+      - "80:5000"
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
