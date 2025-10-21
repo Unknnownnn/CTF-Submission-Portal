@@ -47,13 +47,36 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// CORS middleware - keep this early so preflight (OPTIONS) requests are handled before other middleware
+const frontendUrls = (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:3000,http://139.59.74.221')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // allow requests with no origin (like curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (frontendUrls.indexOf(origin) !== -1) return callback(null, true);
+    // you can log rejected origins here for debugging
+    console.warn('Blocked CORS request from origin:', origin);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+};
+
+// Register CORS before rate limiting and routes so OPTIONS preflight requests are handled
+app.use(cors(corsOptions));
+
+// Ensure explicit handling of preflight for all routes
+// Use '/*' to avoid path-to-regexp `Missing parameter name` error when registering a literal '*'
+app.options('/*', cors(corsOptions));
+
 // Middleware
 app.use(limiter);
 app.use('/api/auth', authLimiter);
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
-}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(fileUpload({

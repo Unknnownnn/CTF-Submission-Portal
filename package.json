@@ -1,6 +1,6 @@
 {
   "name": "ctf-collection",
-  "version": "latest",
+  "version": "1.0.0",
   "description": "CTF Submission Collection Web App",
   "private": true,
   "workspaces": [

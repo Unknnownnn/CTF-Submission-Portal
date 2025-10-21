@@ -1,19 +1,19 @@
 {
   "name": "ctf-collection-client",
   "homepage": "./",
-  "version": "latest",
+  "version": "1.0.0",
   "private": true,
   "proxy": "http://localhost:5000",
   "dependencies": {
-    "axios": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "react-router-dom": "latest",
-    "react-markdown": "latest",
-    "remark-gfm": "latest"
+  "axios": "1.4.0",
+  "react": "18.2.0",
+  "react-dom": "18.2.0",
+  "react-router-dom": "6.14.1",
+  "react-markdown": "8.0.7",
+  "remark-gfm": "3.0.1"
   },
   "scripts": {
-    "start": "react-scripts start",
+  "start": "HOST=0.0.0.0 react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
@@ -36,6 +36,6 @@
     ]
   },
   "devDependencies": {
-    "react-scripts": "latest"
+    "react-scripts": "5.0.1"
   }
 }
