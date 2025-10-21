@@ -16,9 +16,7 @@ function Dashboard() {
   const { displayText, isComplete } = useTypingAnimation(welcomeMessage, 50);
   // Download sample markdown directly from backend
   const downloadSample = () => {
-    const rawApiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-    const apiRoot = rawApiUrl.replace(/\/$/, '').replace(/\/api$/i, '');
-    const url = `${apiRoot}/api/sample-walkthrough`;
+    const url = `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/sample-walkthrough`;
     const a = document.createElement('a');
     a.href = url;
     a.setAttribute('download', 'Sample_Walkthrough.md');

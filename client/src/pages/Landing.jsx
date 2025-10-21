@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import TerminalLink from '../components/TerminalLink';
+import useRandomCharacters from '../hooks/useRandomCharacters';
 import useTypingAnimation from '../hooks/useTypingAnimation';
 import '../styles/Landing.css';
 
@@ -23,7 +25,7 @@ function Landing() {
 | $$    $$    | $$    /$$  \ $$| $$    $$| $$  | $$| $$\  $ | $$
 |  $$$$$$/    | $$   |  $$$$$$/|  $$$$$$/|  $$$$$$/| $$ \/  | $$
  \______/     |__/    \______/  \______/  \______/ |__/     |__/
-
+                                                                                                                       
 `}
         </div>
         <div className="terminal-prompt">

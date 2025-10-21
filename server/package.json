@@ -1,6 +1,6 @@
 {
   "name": "ctf-collection-server",
-  "version": "1.0.0",
+  "version": "latest",
   "description": "CTF submission collection backend",
   "main": "server.js",
   "scripts": {
@@ -16,19 +16,19 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "bcrypt": "5.1.1",
-    "cors": "2.8.5",
-    "express": "4.18.2",
-    "express-fileupload": "1.4.0",
-    "express-rate-limit": "6.7.0",
-    "helmet": "6.0.1",
-    "jsonwebtoken": "9.0.0",
-    "mysql2": "3.3.0",
-    "archiver": "5.3.1",
-    "dotenv": "17.2.3",
-    "express-validator": "7.0.1"
+    "bcrypt": "latest",
+    "cors": "latest",
+    "express": "latest",
+    "express-fileupload": "latest",
+    "express-rate-limit": "latest",
+    "helmet": "latest",
+    "jsonwebtoken": "latest",
+    "mysql2": "latest",
+    "archiver": "latest",
+    "dotenv": "latest",
+    "express-validator": "latest"
   },
   "devDependencies": {
-    "nodemon": "2.0.22"
+    "nodemon": "latest"
   }
 }

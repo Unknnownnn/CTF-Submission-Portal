@@ -17,10 +17,9 @@ function Submit() {
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
   // Backend sample file URL (prefers REACT_APP_API_URL if set)
-  const rawApiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-  const apiRoot = rawApiUrl.replace(/\/$/, '').replace(/\/api$/i, '');
-  const sampleUrl = `${apiRoot}/api/sample-walkthrough`;
+  const sampleUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/sample-walkthrough`;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -60,7 +59,7 @@ function Submit() {
       if (externalLink) formData.append('external_link', externalLink);
       formData.append('writeup', writeup);
 
-      await api.post('/submissions', formData, {
+      const response = await api.post('/submissions', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -92,7 +91,7 @@ function Submit() {
                 Download Sample Writeup (.md)
               </a>
             </div>
-          <small>Use this template to format your writeup</small>
+            <small>Use this template to format your writeup</small>
           </div>
           <div className="form-group">
             <label>Title *</label>

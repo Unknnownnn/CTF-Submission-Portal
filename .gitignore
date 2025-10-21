@@ -8,3 +8,6 @@ build/
 .idea/
 *.log
 .git/
+docker-compose_old.yml
+.env.prod
+.github

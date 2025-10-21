@@ -36,9 +36,14 @@ router.post('/', authenticateToken, [
   }
 
   const writeupFile = req.files.writeup;
-  if (!writeupFile.name.endsWith('.md')) {
+  // Case-insensitive extension check
+  if (!writeupFile.name.toLowerCase().endsWith('.md')) {
     return res.status(400).json({ error: 'Writeup must be a .md file' });
   }
+  // Optional: check MIME type if available (not all clients set it reliably)
+  // if (writeupFile.mimetype && writeupFile.mimetype !== 'text/markdown' && writeupFile.mimetype !== 'text/plain') {
+  //   return res.status(400).json({ error: 'Invalid writeup file type' });
+  // }
 
   try {
     const submissionId = crypto.randomUUID();
@@ -335,14 +340,18 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
     const total = countResult[0].total;
 
     // Get paginated submissions
-    const [submissions] = await connection.execute(
-      `SELECT s.id, s.title, s.user_id, u.name, u.email, s.created_at, s.external_link, s.file_path, s.filename
+    // MySQL prepared statements don't reliably accept OFFSET as a separate placeholder in some drivers.
+    // Use LIMIT offset, count (LIMIT ?, ?) and pass integers explicitly to avoid ER_WRONG_ARGUMENTS.
+    const safePerPage = Number.isFinite(perPage) ? perPage : 10;
+    const safeOffset = Number.isFinite(offset) ? offset : 0;
+    const sql = `SELECT s.id, s.title, s.user_id, u.name, u.email, s.created_at, s.external_link, s.file_path, s.filename
        FROM submissions s
        JOIN users u ON s.user_id = u.id
        ORDER BY s.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [perPage, offset]
-    );
+       LIMIT ${safeOffset}, ${safePerPage}`;
+
+    console.log('List submissions SQL:', sql);
+    const [submissions] = await connection.query(sql);
     connection.release();
 
     res.json({

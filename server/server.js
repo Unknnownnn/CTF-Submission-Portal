@@ -7,9 +7,35 @@ const fs = require('fs');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 
+const pool = require('./config/database');
+
+// Startup safety checks
+const JWT_SECRET = process.env.JWT_SECRET || '';
+if (!JWT_SECRET || JWT_SECRET === 'your_super_secret_key_change_this_in_production' || JWT_SECRET === 'your_secret') {
+  console.error('FATAL: JWT_SECRET is not set to a secure value. Set JWT_SECRET in your environment before deploying.');
+  // Exit early in non-development environments to avoid accidental insecure deployments
+  if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
 const authRoutes = require('./routes/auth');
 const submissionRoutes = require('./routes/submissions');
 const adminRoutes = require('./routes/admin');
+
+// Test database connection
+const testDbConnection = async () => {
+  console.log('Testing database connection, pool:', typeof pool, !!pool);
+  if (!pool) {
+    console.error('Pool is not defined, skipping database test');
+    return;
+  }
+  try {
+    await pool.execute('SELECT 1');
+    console.log('Database connection established');
+  } catch (err) {
+    console.error('Database connection failed:', err.message);
+    // Don't exit, let the app start and retry connections
+  }
+};
 
 const app = express();
 
@@ -27,56 +53,85 @@ app.use(helmet({
     maxAge: 31536000,
     includeSubDomains: true,
     preload: true
-  }
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limit each IP to 5 auth attempts per windowMs
-  message: 'Too many authentication attempts, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// CORS middleware - keep this early so preflight (OPTIONS) requests are handled before other middleware
-const frontendUrls = (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:3000,http://139.59.74.221')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
-
-const corsOptions = {
+// CORS configuration - applied early
+app.use(cors({
   origin: function (origin, callback) {
-    // allow requests with no origin (like curl, server-to-server)
-    if (!origin) return callback(null, true);
-    if (frontendUrls.indexOf(origin) !== -1) return callback(null, true);
-    // you can log rejected origins here for debugging
-    console.warn('Blocked CORS request from origin:', origin);
+    // Allow requests with no origin (like mobile apps or curl requests) or 'null' origin
+    if (!origin || origin === 'null') return callback(null, true);
+
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:5000'
+    ];
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.log('CORS blocked origin:', origin);
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
-  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
-};
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200
+}));
 
-// Register CORS before rate limiting and routes so OPTIONS preflight requests are handled
-app.use(cors(corsOptions));
+// Rate limiting (configurable via env vars)
+// RATE_WINDOW_MIN: window size in minutes (default 15)
+// RATE_MAX: global max requests per window (default 100)
+// AUTH_MAX: auth-specific max requests per window (default 30)
+const rateWindowMin = parseInt(process.env.RATE_WINDOW_MIN || '15', 10);
+const rateMax = parseInt(process.env.RATE_MAX || '100', 10);
+const authMax = parseInt(process.env.AUTH_MAX || '30', 10);
+const windowMs = rateWindowMin * 60 * 1000;
 
-// Ensure explicit handling of preflight for all routes
-// Use '/*' to avoid path-to-regexp `Missing parameter name` error when registering a literal '*'
-app.options('/*', cors(corsOptions));
+// Respect reverse proxies (Docker, nginx) if explicitly enabled
+if (process.env.TRUST_PROXY === 'true') {
+  app.set('trust proxy', true);
+}
+
+const limiter = rateLimit({
+  windowMs,
+  max: rateMax,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS',
+  handler: (req, res) => {
+    const retryAfter = Math.ceil((windowMs - (Date.now() % windowMs)) / 1000);
+    res.set('Retry-After', String(retryAfter));
+    res.status(429).json({ error: 'Too many requests from this IP, please try again later.' });
+  }
+});
+
+const authLimiter = rateLimit({
+  windowMs,
+  max: authMax,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS',
+  handler: (req, res) => {
+    const retryAfter = Math.ceil((windowMs - (Date.now() % windowMs)) / 1000);
+    res.set('Retry-After', String(retryAfter));
+    res.status(429).json({ error: 'Too many authentication attempts, please try again later.' });
+  }
+});
 
 // Middleware
 app.use(limiter);
 app.use('/api/auth', authLimiter);
+
+// Debug middleware
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+  next();
+});
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(fileUpload({
@@ -87,10 +142,27 @@ app.use(fileUpload({
   preserveExtension: true,
 }));
 
-// Ensure submissions directory exists
-const submissionsPath = path.join(__dirname, '..', process.env.SUBMISSIONS_PATH || 'submissions');
-if (!fs.existsSync(submissionsPath)) {
-  fs.mkdirSync(submissionsPath, { recursive: true });
+// Ensure submissions directory exists (handle absolute and relative env paths safely)
+const submissionsEnv = process.env.SUBMISSIONS_PATH || 'submissions';
+let submissionsPath;
+if (path.isAbsolute(submissionsEnv)) {
+  submissionsPath = submissionsEnv;
+} else {
+  // Resolve relative paths against the current working directory (container/app root)
+  // This avoids resolving to filesystem root when __dirname's parent is '/'
+  submissionsPath = path.resolve(process.cwd(), submissionsEnv);
+}
+
+console.log('Submissions directory resolved to:', submissionsPath);
+
+try {
+  if (!fs.existsSync(submissionsPath)) {
+    fs.mkdirSync(submissionsPath, { recursive: true });
+  }
+} catch (err) {
+  console.error(`Failed to ensure submissions directory (${submissionsPath}):`, err.message);
+  // Re-throw so startup fails visibly when directory cannot be created due to permissions
+  throw err;
 }
 
 // Routes
@@ -101,9 +173,26 @@ app.use('/api/admin', adminRoutes);
 // Public sample writeup download (helps users create writeups)
 app.get('/api/sample-walkthrough', (req, res) => {
   try {
-    const samplePath = path.join(__dirname, '..', 'Sample_Walkthrough.md');
-    if (!fs.existsSync(samplePath)) {
-      return res.status(404).json({ error: 'Sample walkthrough not found' });
+    // Try multiple likely locations depending on build context
+    const candidates = [
+      path.join(__dirname, '..', 'Sample_Walkthrough.md'),
+      path.join(__dirname, 'Sample_Walkthrough.md'),
+      path.join(process.cwd(), 'Sample_Walkthrough.md')
+    ];
+
+    let samplePath = null;
+    for (const c of candidates) {
+      if (fs.existsSync(c)) {
+        samplePath = c;
+        break;
+      }
+    }
+
+    if (!samplePath) {
+      // Fallback: send an embedded minimal sample markdown
+      const fallback = `# Sample CTF Writeup\n\nUse the web UI to download the sample writeup or add a Sample_Walkthrough.md file to the server directory.`;
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      return res.send(fallback);
     }
 
     // Use res.download to set safe headers and stream file as attachment
@@ -117,9 +206,24 @@ app.get('/api/sample-walkthrough', (req, res) => {
 // Serve raw markdown for in-app preview
 app.get('/api/sample-walkthrough/raw', (req, res) => {
   try {
-    const samplePath = path.join(__dirname, '..', 'Sample_Walkthrough.md');
-    if (!fs.existsSync(samplePath)) {
-      return res.status(404).json({ error: 'Sample walkthrough not found' });
+    const candidates = [
+      path.join(__dirname, '..', 'Sample_Walkthrough.md'),
+      path.join(__dirname, 'Sample_Walkthrough.md'),
+      path.join(process.cwd(), 'Sample_Walkthrough.md')
+    ];
+
+    let samplePath = null;
+    for (const c of candidates) {
+      if (fs.existsSync(c)) {
+        samplePath = c;
+        break;
+      }
+    }
+
+    if (!samplePath) {
+      const fallback = `# Sample CTF Writeup\n\nUse the web UI to download the sample writeup or add a Sample_Walkthrough.md file to the server directory.`;
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      return res.send(fallback);
     }
 
     const content = fs.readFileSync(samplePath, 'utf8');
@@ -168,6 +272,9 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+const HOST = process.env.HOST || '0.0.0.0';
+
+app.listen(PORT, HOST, async () => {
+  console.log(`Server running on http://${HOST}:${PORT}`);
+  await testDbConnection();
 });

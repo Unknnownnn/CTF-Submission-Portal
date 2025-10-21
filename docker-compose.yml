@@ -3,39 +3,44 @@ version: '3.8'
 services:
   mysql:
     image: mysql:8.0
-    container_name: ctf-collection-mysql
+    container_name: ctf-collection-mysql-prod
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: ctf_collection
-    ports:
-      - "3307:3306"
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:-ctf_collection}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - mysql_data:/var/lib/mysql
-      - ./sql/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - mysql_data_prod:/var/lib/mysql
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       timeout: 20s
       retries: 10
 
   app:
     build: ./server
-    container_name: ctf-collection-app
+    container_name: ctf-collection-app-prod
     ports:
       - "5000:5000"
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
+      HOST: 0.0.0.0
       DB_HOST: mysql
-      DB_USER: root
-      DB_PASSWORD: rootpassword
-      DB_NAME: ctf_collection
-      JWT_SECRET: your_super_secret_key_change_this_in_production
-      SUBMISSIONS_PATH: ./submissions
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-ctf_collection}
+      DB_PORT: 3306
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRE: ${JWT_EXPIRE:-7d}
+      SUBMISSIONS_PATH: /data/submissions
+      FRONTEND_URL: ${FRONTEND_URL}
+      TRUST_PROXY: 'true'
     volumes:
-      - ./submissions:/app/submissions
+      - submissions_prod:/data/submissions:rw
     depends_on:
-      mysql:
-        condition: service_healthy
-    command: npm run dev
+      - mysql
+    restart: unless-stopped
 
 volumes:
-  mysql_data:
+  mysql_data_prod:
+  submissions_prod:
