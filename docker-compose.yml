@@ -20,8 +20,8 @@ services:
   app:
     build: ./server
     container_name: ctf-collection-app-prod
-    ports:
-      - "5000:5000"
+    # App runs internally only; the frontend will be served to the public.
+    # Do not expose the backend directly to the internet in this setup.
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
@@ -40,6 +40,18 @@ services:
     depends_on:
       - mysql
     restart: unless-stopped
+
+  client:
+    build: ./client
+    container_name: ctf-collection-client-prod
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - BROWSER=none
+      - REACT_APP_API_URL=http://ctf-collection-app-prod:5000/api
+    ports:
+      - "80:3000"
+    depends_on:
+      - app
 
 volumes:
   mysql_data_prod:

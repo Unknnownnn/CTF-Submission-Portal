@@ -10,4 +10,3 @@ build/
 .git/
 docker-compose_old.yml
 .env.prod
-.github
